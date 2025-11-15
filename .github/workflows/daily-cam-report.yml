@@ -1,0 +1,46 @@
+name: Daily CAM QA Email
+
+on:
+  schedule:
+    # 13:30 UTC = 08:30 America/Toronto (EST). Adjust if you want.
+    - cron: "30 13 * * 1-5"
+  workflow_dispatch: {}
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Send daily QA report email
+        env:
+          # IMPORTANT: Set this secret to https://mcd-tools.atlassian.net (no /jira)
+          JIRA_BASE: ${{ secrets.JIRA_BASE }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+          PROJECT_KEY: "CAM"
+
+          ZEPHYR_SCALE_TOKEN: ${{ secrets.ZEPHYR_SCALE_TOKEN }}
+
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}   # e.g. "587"
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+
+          # Your recipients
+          MAIL_TO: "ishant.rawat@ca.mcd.com, rawatishant.cgi@gmail.com"
+
+          # Optional: override FROM address (otherwise uses SMTP_USER)
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        run: python scripts/daily_cam_report.py
