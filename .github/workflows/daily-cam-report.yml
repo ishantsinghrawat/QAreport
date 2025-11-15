@@ -2,7 +2,7 @@ name: Daily CAM QA Email
 
 on:
   schedule:
-    # 13:30 UTC = 08:30 America/Toronto (EST). Adjust if you want.
+    # 13:30 UTC = 08:30 America/Toronto during EST (adjust as you like)
     - cron: "30 13 * * 1-5"
   workflow_dispatch: {}
 
@@ -24,23 +24,34 @@ jobs:
 
       - name: Send daily QA report email
         env:
-          # IMPORTANT: Set this secret to https://mcd-tools.atlassian.net (no /jira)
+          # --- Jira (mcd-tools) ---
+          # Set secrets:
+          #   JIRA_BASE = https://mcd-tools.atlassian.net
+          #   JIRA_EMAIL = your Jira user email
+          #   JIRA_API_TOKEN = Jira API token for that user
           JIRA_BASE: ${{ secrets.JIRA_BASE }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-
           PROJECT_KEY: "CAM"
 
+          # --- Zephyr Scale ---
+          # ZEPHYR_SCALE_TOKEN = Zephyr Scale Cloud API token
           ZEPHYR_SCALE_TOKEN: ${{ secrets.ZEPHYR_SCALE_TOKEN }}
 
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}   # e.g. "587"
+          # --- Gmail SMTP ---
+          # For Gmail:
+          #   SMTP_HOST = smtp.gmail.com
+          #   SMTP_PORT = 587
+          #   SMTP_USER = your Gmail (e.g. rawatishant.cgi@gmail.com)
+          #   SMTP_PASS = Gmail App Password (NOT normal password)
+          SMTP_HOST: "smtp.gmail.com"
+          SMTP_PORT: "587"
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
 
-          # Your recipients
+          # Recipients (you + client)
           MAIL_TO: "ishant.rawat@ca.mcd.com, rawatishant.cgi@gmail.com"
 
-          # Optional: override FROM address (otherwise uses SMTP_USER)
-          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          # Optional: explicitly set From to your Gmail
+          MAIL_FROM: ${{ secrets.SMTP_USER }}
         run: python scripts/daily_cam_report.py
