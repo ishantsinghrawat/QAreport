@@ -7,32 +7,38 @@ from collections import Counter
 from email.message import EmailMessage
 from urllib.parse import urlencode
 
-# --- Config from environment ---
-
-# IMPORTANT: Set JIRA_BASE secret to: https://mcd-tools.atlassian.net
-# (no /jira at the end – /jira is only for the UI)
-JIRA_BASE   = os.environ["JIRA_BASE"]          # e.g. https://mcd-tools.atlassian.net
-JIRA_EMAIL  = os.environ["JIRA_EMAIL"]         # Jira user email
-JIRA_TOKEN  = os.environ["JIRA_API_TOKEN"]     # API token for that user
+# --- Jira config (from GitHub Secrets) ---
+# JIRA_BASE must be: https://mcd-tools.atlassian.net  (NO trailing /jira)
+JIRA_BASE   = os.environ["JIRA_BASE"]
+JIRA_EMAIL  = os.environ["JIRA_EMAIL"]          # Jira user email
+JIRA_TOKEN  = os.environ["JIRA_API_TOKEN"]      # Jira API token
 PROJECT_KEY = os.environ.get("PROJECT_KEY", "CAM")
 
+# --- Zephyr Scale config ---
 Z_BASE  = "https://api.zephyrscale.smartbear.com/v2"
-Z_TOKEN = os.environ["ZEPHYR_SCALE_TOKEN"]     # Zephyr Scale API token (Cloud)
+Z_TOKEN = os.environ["ZEPHYR_SCALE_TOKEN"]      # Zephyr Scale API token
 
+# --- SMTP / Gmail config ---
+# For Gmail:
+#   SMTP_HOST = smtp.gmail.com
+#   SMTP_PORT = 587
+#   SMTP_USER = your Gmail address
+#   SMTP_PASS = your Gmail App Password (NOT normal password)
 SMTP_HOST = os.environ["SMTP_HOST"]
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ["SMTP_USER"]
 SMTP_PASS = os.environ["SMTP_PASS"]
-MAIL_TO   = os.environ["MAIL_TO"]              # comma-separated list
+
+MAIL_TO   = os.environ["MAIL_TO"]               # comma-separated
 MAIL_FROM = os.environ.get("MAIL_FROM", SMTP_USER)
 
-# --- Date window: "today" in UTC (works fine if you run at ~13:30 UTC = 08:30 Toronto) ---
+# --- Date window: today in UTC ---
 today_utc = datetime.datetime.utcnow().date()
 start_iso = f"{today_utc}T00:00:00Z"
 end_iso   = f"{today_utc}T23:59:59Z"
 
 
-# --- Helper functions ---
+# ---------- Helpers ----------
 
 def jira_search(jql: str, fields: str):
     """Search Jira issues by JQL."""
@@ -67,9 +73,7 @@ def zephyr_get_test_executions(project_key: str, start_iso: str, end_iso: str, l
     resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
-
-    # Some Zephyr responses wrap items in "executions", some just return a list
-    executions = data.get("executions", data)
+    executions = data.get("executions", data)  # support both shapes
     return executions
 
 
@@ -107,7 +111,7 @@ def to_table(rows, headers):
     )
 
 
-# --- Jira: defects for CAM ---
+# ---------- Jira: defects for CAM ----------
 
 jql_defects_today = (
     f"project = {PROJECT_KEY} "
@@ -123,18 +127,19 @@ jql_open_blockers = (
     "AND statusCategory != Done"
 )
 
-defects_today = jira_search(jql_defects_today,
-                            "key,summary,priority,status,assignee")
-open_blockers = jira_search(jql_open_blockers,
-                            "key,summary,priority,status,assignee")
+defects_today = jira_search(
+    jql_defects_today,
+    "key,summary,priority,status,assignee"
+)
+open_blockers = jira_search(
+    jql_open_blockers,
+    "key,summary,priority,status,assignee"
+)
 
-# --- Zephyr Scale: executions for CAM today ---
+# ---------- Zephyr Scale: executions for CAM today ----------
 
 executions = zephyr_get_test_executions(PROJECT_KEY, start_iso, end_iso)
 status_counts = Counter((e.get("status") or "Unknown") for e in executions)
-
-
-# --- Build HTML email ---
 
 today_str = today_utc.isoformat()
 
@@ -164,13 +169,14 @@ html_body = f"""
     <p style="font-size: 12px; color: #666;">
       Generated automatically from Jira Cloud ({JIRA_BASE})
       and Zephyr Scale Cloud APIs.<br/>
-      Window: {start_iso} to {end_iso} (UTC).
+      Window: {start_iso} to {end_iso} (UTC).<br/>
+      Sent via Gmail SMTP as {SMTP_USER}.
     </p>
   </body>
 </html>
 """
 
-# --- Send email ---
+# ---------- Send email via Gmail SMTP ----------
 
 msg = EmailMessage()
 msg["Subject"] = f"Daily QA Report — {today_str} (CAM)"
@@ -182,5 +188,5 @@ msg.add_alternative(html_body, subtype="html")
 
 with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
     server.starttls()
-    server.login(SMTP_USER, SMTP_PASS)
+    server.login(SMTP_USER, SMTP_PASS)  # Gmail user + Gmail App Password
     server.send_message(msg)
